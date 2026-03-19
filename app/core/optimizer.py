@@ -1,24 +1,32 @@
 import asyncio
 import logging
 
-class HighPerformanceOptimizer:
+# Standard logging config for production-ready observability
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+async def run_optimized_tasks(tasks):
     """
-    Advanced Asynchronous System Optimizer for High-Concurrency Environments.
+    Core execution engine for concurrent I/O workloads.
+    
+    Setting return_exceptions=True is a deliberate design choice 
+    to prevent the 'cascading failure' pattern typical in SaaS pipelines.
     """
-    def __init__(self, concurrency_limit=1000):
-        self.semaphore = asyncio.Semaphore(concurrency_limit)
-        self.logger = logging.getLogger(__name__)
-
-    async def process_task(self, task_id):
-        async with self.semaphore:
-            # Simulating LLM fine-tuning or high-load optimization
-            await asyncio.sleep(0.1) 
-            return {"status": "success", "task_id": task_id}
-
-async def main():
-    optimizer = HighPerformanceOptimizer()
-    tasks = [optimizer.process_task(i) for i in range(100)]
-    await asyncio.gather(*tasks)
-
-if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        # We allow individual tasks to fail without crashing the whole loop
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        # Post-execution cleanup: Filter out exceptions and log failures
+        clean_results = []
+        for res in results:
+            if isinstance(res, Exception):
+                logger.error(f"Async worker encountered an error: {res}")
+            else:
+                clean_results.append(res)
+                
+        return clean_results
+    
+    except Exception as e:
+        # Global catch-all for high-level pipeline orchestration issues
+        logger.critical(f"Pipeline orchestration failed: {str(e)}")
+        return []
